@@ -1,6 +1,9 @@
 #!/usr/bin/env php
 <?php
 //
+//	RUN UPDATE ON TRANSLATION FILE:
+//	php bin/php/ezlupdate.php -e extension/extensionName -u -no --utf8 -- nor-NO
+//
 // ## BEGIN COPYRIGHT, LICENSE AND WARRANTY NOTICE ##
 // SOFTWARE NAME: eZ Publish
 // SOFTWARE RELEASE: 4.3.x
@@ -801,20 +804,6 @@ function saveTsFile( $mergedResult, $filename )
         {
             $messageEl = $doc->createElement( 'message' );
             $contextEl->appendChild( $messageEl );
-
-            if ( isset( $message['location_file'] ) )
-            {
-                $locationEl = $doc->createElement( 'location' );
-                $messageEl->appendChild( $locationEl );
-
-                $filenameAttr = $doc->createAttribute( 'filename' );
-                $locationEl->appendChild( $filenameAttr );
-                $filenameAttr->appendChild( $doc->createTextNode( $message['location_file'] ) );
-
-                $lineAttr = $doc->createAttribute( 'line' );
-                $locationEl->appendChild( $lineAttr );
-                $lineAttr->appendChild( $doc->createTextNode( $message['location_line'] ) );
-            }
 
             $sourceEl = $doc->createElement( 'source' );
             $messageEl->appendChild( $sourceEl );
