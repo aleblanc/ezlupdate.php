@@ -1,9 +1,6 @@
 #!/usr/bin/env php
 <?php
 //
-//	RUN UPDATE ON TRANSLATION FILE:
-//	php bin/php/ezlupdate.php -e extension/extensionName -u -no --utf8 -- nor-NO
-//
 // ## BEGIN COPYRIGHT, LICENSE AND WARRANTY NOTICE ##
 // SOFTWARE NAME: eZ Publish
 // SOFTWARE RELEASE: 4.3.x
@@ -289,14 +286,18 @@ function parsePHPFile( $filePath, &$result )
             {
                 if ( !isset( $result[$context] ) )
                     $result[$context] = array();
-                $result[$context][] = array( 'source' => $ts_string,
-                                             'location_file' => $filePath );
+                $result[$context][] = array( 'source' => $ts_string );
                 // TODO: Save line number (may require proper parsing)
             }
         }
     }
 }
-
+function array_unique_multidimensional($input)
+{
+    $serialized = array_map('serialize', $input);
+    $unique = array_unique($serialized);
+    return array_intersect_key($input, $unique);
+}
 function parseTPLFile( $filePath, &$result )
 {
     $content = file_get_contents( $filePath );
@@ -315,8 +316,7 @@ function parseTPLFile( $filePath, &$result )
             {
                 if ( !isset( $result[$context] ) )
                     $result[$context] = array();
-                $result[$context][] = array( 'source' => $ts_string,
-                                             'location_file' => $filePath );
+                $result[$context][$ts_string] = array( 'source' => $ts_string);
                 // TODO: Save line number (may require proper parsing)
             }
         }
@@ -340,16 +340,29 @@ function getI18nStringsInPhp( $content )
         {
             foreach ( $matches[1] as $index => $instance )
             {
-                $php = '$values = array( ' . $instance . ' );';
-                $success = eval( $php );
+            	try {
+            	    $str_array=explode(',',$instance);
+                    $values = array();
+	                $php = '$values = array( ' . trim(str_replace('$','\$',$instance)) . ' );';
+	                $success = eval( $php );
 
-                if ( $success === false )
-                {
-                    print( 'Error: Unparseable translation' . "\n" );
-                    print( $php . "\n" );
-                }
+	                if ( $success === false )
+	                {
+	                    //solution v2
+            	        $str_array=explode(',',$instance);
+            	        $trad="";
+            	        eval("\$trad = ".$str_array[1].";");
+            	        $values=array(
+                            trim(substr(substr(trim($str_array[0]),1),0,-1)),
+                            trim($trad),
+                        );
+	                }
 
-                $return[] = $values;
+	                $return[] = $values;
+
+				}
+				catch( Exception $e ) {
+				}
             }
         }
 
@@ -636,9 +649,9 @@ function handleMessageNode( $contextName, $message, &$result )
             }
             else if ( $childName == "location" )
             {
-                if ( $message_child->hasAttribute( 'filename' ) )
+                /*if ( $message_child->hasAttribute( 'filename' ) )
                     $location_file = $message_child->getAttribute( 'filename' );
-                else
+                else*/
                     $location_file = '';
 
                 if ( $message_child->hasAttribute( 'line' ) and
@@ -671,7 +684,8 @@ function handleMessageNode( $contextName, $message, &$result )
 
     if ( !isset( $result[$contextName] ) )
         $result[$contextName] = array();
-    $result[$contextName][] = array( 'source' => $source,
+
+    $result[$contextName][$source] = array( 'source' => $source,
                                      'translation' => $translation,
                                      'translation_unfinished' => $translation_unfinished,
                                      'comment' => $comment,
@@ -760,7 +774,8 @@ function mergeTranslations( $existingResult, $newResult )
 
 function saveTsFile( $mergedResult, $filename )
 {
-// print( "Saving to file: $filename\n" ); // REMOVE
+
+ print( "Saving to file: $filename\n" ); // REMOVE
     global $tsLanguage, $tsSourceLanguage;
 
     $imp = new DOMImplementation;
@@ -793,6 +808,7 @@ function saveTsFile( $mergedResult, $filename )
 
     foreach ( $mergedResult as $context => $messages )
     {
+        $messages=array_unique_multidimensional($messages);
         $contextEl = $doc->createElement( 'context' );
         $tsEl->appendChild( $contextEl );
 
@@ -802,26 +818,44 @@ function saveTsFile( $mergedResult, $filename )
 
         foreach ( $messages as $message )
         {
+            if($message['source']=="")
+                continue;
+            
             $messageEl = $doc->createElement( 'message' );
             $contextEl->appendChild( $messageEl );
 
+/*
+            if ( isset( $message['location_file'] ) )
+            {
+                $locationEl = $doc->createElement( 'location' );
+                $messageEl->appendChild( $locationEl );
+
+                $filenameAttr = $doc->createAttribute( 'filename' );
+                $locationEl->appendChild( $filenameAttr );
+                $filenameAttr->appendChild( $doc->createTextNode( $message['location_file'] ) );
+
+                $lineAttr = $doc->createAttribute( 'line' );
+                $locationEl->appendChild( $lineAttr );
+                $lineAttr->appendChild( $doc->createTextNode( $message['location_line'] ) );
+            }
+*/
             $sourceEl = $doc->createElement( 'source' );
             $messageEl->appendChild( $sourceEl );
             $sourceEl->appendChild( $doc->createTextNode( $message['source'] ) );
-
             $translationEl = $doc->createElement( 'translation' );
             $messageEl->appendChild( $translationEl );
             if ( isset( $message['translation'] ) ) // A translation may not exist
                 $translationEl->appendChild( $doc->createTextNode( $message['translation'] ) );
             else
                 $translationEl->appendChild( $doc->createTextNode( '' ) ); // Set empty string, to avoid collapsed tag. Good for plain text editors.
-            if ( isset( $message['obsolete'] ) )
+           /* obsolete bugged : disable it if ( isset( $message['obsolete'] ) )
             {
                 $typeAttr = $doc->createAttribute( 'type' );
                 $translationEl->appendChild( $typeAttr );
                 $typeAttr->appendChild( $doc->createTextNode( 'obsolete' ) );
             }
-            else if ( isset( $message['translation_unfinished'] ) or
+            else */
+                if ( isset( $message['translation_unfinished'] ) or
                       !isset( $message['translation'] ) or
                       strlen( $message['translation'] ) == 0 )
             {
